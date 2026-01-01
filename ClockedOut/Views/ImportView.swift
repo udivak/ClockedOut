@@ -136,13 +136,61 @@ struct ImportPreviewView: View {
                 .font(.title)
                 .bold()
             
+            // Hours Summary
             VStack(alignment: .leading, spacing: 12) {
                 PreviewRow(label: "Month", value: preview.month)
                 PreviewRow(label: "Entries", value: "\(preview.entryCount)")
                 PreviewRow(label: "Weekday Hours", value: preview.weekdayHours.formatAsDecimalHours())
                 PreviewRow(label: "Weekend Hours", value: preview.weekendHours.formatAsDecimalHours())
                 PreviewRow(label: "Total Hours", value: (preview.weekdayHours + preview.weekendHours).formatAsDecimalHours())
-                PreviewRow(label: "Salary", value: CurrencyFormatter.shared.format(preview.salary))
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(12)
+            
+            Divider()
+            
+            // Rate Input Section
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Hourly Rates")
+                    .font(.headline)
+                
+                HStack {
+                    Text("Weekday Rate:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    TextField("90", value: $viewModel.weekdayRate, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .accessibilityLabel("Weekday hourly rate")
+                }
+                
+                HStack {
+                    Text("Weekend Rate:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    TextField("100", value: $viewModel.weekendRate, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .accessibilityLabel("Weekend hourly rate")
+                }
+                
+                if let error = viewModel.rateValidationError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+                
+                Button("Calculate Salary") {
+                    viewModel.validateAndCalculateSalary()
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Calculate salary based on rates")
+                
+                if viewModel.isRatesValid {
+                    PreviewRow(label: "Calculated Salary", value: CurrencyFormatter.shared.format(viewModel.calculatedSalary))
+                        .padding(.top, 8)
+                }
             }
             .padding()
             .background(Color.gray.opacity(0.1))
@@ -152,40 +200,17 @@ struct ImportPreviewView: View {
                 Text("This month already exists in the database.")
                     .font(.subheadline)
                     .foregroundColor(.orange)
-                
-                HStack {
-                    Button("Replace") {
-                        Task {
-                            do {
-                                try await viewModel.confirmImport(action: .replace)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Replace existing month data")
-                    
-                    Button("Accumulate") {
-                        Task {
-                            do {
-                                try await viewModel.confirmImport(action: .accumulate)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Add to existing month data")
-                    
-                    Button("Cancel") {
-                        viewModel.preview = nil
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Cancel import")
+            }
+            
+            HStack(spacing: 16) {
+                Button("Delete") {
+                    viewModel.preview = nil
                 }
-            } else {
-                Button("Import") {
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .accessibilityLabel("Cancel and go back")
+                
+                Button("Save") {
                     Task {
                         do {
                             try await viewModel.confirmImport(action: .replace)
@@ -195,7 +220,9 @@ struct ImportPreviewView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Import CSV data")
+                .tint(.green)
+                .disabled(!viewModel.isRatesValid)
+                .accessibilityLabel("Save report to database")
             }
         }
         .padding(40)
