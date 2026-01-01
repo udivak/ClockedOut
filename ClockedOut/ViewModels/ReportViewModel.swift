@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 
+@MainActor
 final class ReportViewModel: ObservableObject {
     @Published var selectedMonth: String?
     @Published var monthlySummaries: [MonthlySummary] = []

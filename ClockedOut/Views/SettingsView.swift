@@ -16,7 +16,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Weekday Rate")
                             .frame(width: 120, alignment: .leading)
-                        TextField("0.00", value: $viewModel.weekdayRate, format: .currency(code: "USD"))
+                        TextField("0.00", value: $viewModel.weekdayRate, format: .number.precision(.fractionLength(0...2)))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .weekday)
                             .accessibilityLabel("Weekday hourly rate")
@@ -25,7 +25,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Weekend Rate")
                             .frame(width: 120, alignment: .leading)
-                        TextField("0.00", value: $viewModel.weekendRate, format: .currency(code: "USD"))
+                        TextField("0.00", value: $viewModel.weekendRate, format: .number.precision(.fractionLength(0...2)))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .weekend)
                             .accessibilityLabel("Weekend hourly rate")

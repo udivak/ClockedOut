@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 
+@MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var weekdayRate: Double = 0.0
     @Published var weekendRate: Double = 0.0

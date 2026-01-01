@@ -33,5 +33,17 @@ extension Double {
     func formatAsDecimalHours() -> String {
         return String(format: "%.2f", self.rounded(to: 2))
     }
+    
+    /// Formats as clean decimal, removing trailing zeros (e.g., 15.0 → "15", 9.83 → "9.83")
+    func formatClean() -> String {
+        let rounded = self.rounded(to: 2)
+        if rounded == rounded.rounded() {
+            return String(format: "%.0f", rounded)
+        } else if rounded * 10 == (rounded * 10).rounded() {
+            return String(format: "%.1f", rounded)
+        } else {
+            return String(format: "%.2f", rounded)
+        }
+    }
 }
 

@@ -20,10 +20,10 @@ final class PreferenceManager {
     
     private init() {}
     
-    @UserDefault(key: "weekdayRate", defaultValue: 0.0)
+    @UserDefault(key: "weekdayRate", defaultValue: 90.0)
     var weekdayRate: Double
     
-    @UserDefault(key: "weekendRate", defaultValue: 0.0)
+    @UserDefault(key: "weekendRate", defaultValue: 100.0)
     var weekendRate: Double
     
     func saveRates(weekday: Double, weekend: Double) {

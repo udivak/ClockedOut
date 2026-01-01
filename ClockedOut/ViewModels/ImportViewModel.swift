@@ -9,6 +9,17 @@ final class ImportViewModel: ObservableObject {
     @Published var error: AppError?
     @Published var preview: ImportPreview?
     
+    // Rate input properties
+    @Published var weekdayRate: Double = 90.0
+    @Published var weekendRate: Double = 100.0
+    @Published var calculatedSalary: Double = 0.0
+    @Published var rateValidationError: String?
+    @Published var isRatesValid: Bool = false
+    
+    // Notification properties
+    @Published var notificationMessage: String?
+    @Published var notificationType: NotificationType = .success
+    
     private var cachedEntries: [TimeEntry] = []
     private var cachedMonth: String?
     
@@ -20,12 +31,57 @@ final class ImportViewModel: ObservableObject {
     init(monthlyRepo: MonthlySummaryRepository, weeklyRepo: WeeklySummaryRepository) {
         self.monthlyRepo = monthlyRepo
         self.weeklyRepo = weeklyRepo
+        loadSavedRates()
+    }
+    
+    func loadSavedRates() {
+        let rates = PreferenceManager.shared.loadRates()
+        weekdayRate = rates.weekday
+        weekendRate = rates.weekend
+    }
+    
+    func showNotification(_ message: String, type: NotificationType) {
+        notificationMessage = message
+        notificationType = type
+        
+        // Auto-hide after 3 seconds
+        Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            notificationMessage = nil
+        }
+    }
+    
+    func cancelPreview() {
+        preview = nil
+        showNotification("Import cancelled", type: .success)
+    }
+    
+    func validateAndCalculateSalary() {
+        do {
+            try InputValidator.validateRate(weekdayRate, fieldName: "Weekday Rate")
+            try InputValidator.validateRate(weekendRate, fieldName: "Weekend Rate")
+            
+            guard let preview = preview else { return }
+            calculatedSalary = (preview.weekdayHours * weekdayRate) + (preview.weekendHours * weekendRate)
+            isRatesValid = true
+            rateValidationError = nil
+        } catch let error as ValidationError {
+            isRatesValid = false
+            rateValidationError = error.localizedDescription
+        } catch {
+            isRatesValid = false
+            rateValidationError = error.localizedDescription
+        }
     }
     
     func importFile(at url: URL) async throws {
         isImporting = true
         importProgress = 0.0
         error = nil
+        isRatesValid = false
+        rateValidationError = nil
+        calculatedSalary = 0.0
+        loadSavedRates()
         
         defer {
             isImporting = false
@@ -70,6 +126,7 @@ final class ImportViewModel: ObservableObject {
                     existingMonth: true
                 )
                 importProgress = 1.0
+                showNotification("File loaded successfully", type: .success)
                 return // User needs to confirm
             }
             
@@ -90,25 +147,30 @@ final class ImportViewModel: ObservableObject {
                 existingMonth: false
             )
             importProgress = 1.0
+            showNotification("File loaded successfully", type: .success)
             
         } catch let error as AppError {
             self.error = error
+            showNotification("Error: \(error.localizedDescription)", type: .error)
             throw error
         } catch {
             let appError = ParserError.fileReadError(error)
             self.error = appError
+            showNotification("Error: \(appError.localizedDescription)", type: .error)
             throw appError
         }
     }
     
     func confirmImport(action: ImportAction) async throws {
-        guard preview != nil else {
+        guard let currentPreview = preview else {
             throw NSError(domain: "ImportViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No preview available"])
         }
         
         guard !cachedEntries.isEmpty, let month = cachedMonth else {
             throw NSError(domain: "ImportViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Entries not available"])
         }
+        
+        let isReplacing = currentPreview.existingMonth
         
         isImporting = true
         importProgress = 0.0
@@ -122,8 +184,8 @@ final class ImportViewModel: ObservableObject {
         let finalMonth = month
         
         let totals = timeCalculator.calculateMonthlyTotals(finalEntries)
-        let rates = PreferenceManager.shared.loadRates()
-        let salary = (totals.weekdayHours * rates.weekday) + (totals.weekendHours * rates.weekend)
+        // Use the user-entered rates and calculated salary from the view model
+        let salary = calculatedSalary
         
         importProgress = 0.3
         
@@ -131,15 +193,18 @@ final class ImportViewModel: ObservableObject {
         let weeklyReports = timeCalculator.generateWeeklyReports(from: finalEntries)
         importProgress = 0.5
         
-        // Save monthly summary
+        // Save monthly summary with user-entered rates
         var monthlySummary = MonthlySummary(
             month: finalMonth,
             weekdayHours: totals.weekdayHours,
             weekendHours: totals.weekendHours,
-            weekdayRate: rates.weekday,
-            weekendRate: rates.weekend,
+            weekdayRate: weekdayRate,
+            weekendRate: weekendRate,
             salary: salary
         )
+        
+        // Persist rates for future imports
+        PreferenceManager.shared.saveRates(weekday: weekdayRate, weekend: weekendRate)
         
         if action == .accumulate {
             if let existing = try await monthlyRepo.fetch(month: finalMonth) {
@@ -176,6 +241,7 @@ final class ImportViewModel: ObservableObject {
         self.preview = nil
         self.cachedEntries = []
         self.cachedMonth = nil
+        showNotification(isReplacing ? "Report replaced successfully" : "Report saved successfully", type: .success)
     }
     
     func previewImport(file url: URL) async throws -> ImportPreview {
@@ -208,6 +274,25 @@ enum ImportAction {
     case replace
     case accumulate
     case cancel
+}
+
+enum NotificationType {
+    case success
+    case error
+    
+    var color: Color {
+        switch self {
+        case .success: return Color(red: 0.2, green: 0.8, blue: 0.2)
+        case .error: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .success: return "checkmark.circle.fill"
+        case .error: return "xmark.circle.fill"
+        }
+    }
 }
 
 struct ImportPreview {

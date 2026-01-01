@@ -41,8 +41,8 @@ final class ExportService {
             csvContent += "\(range),\(weekday),\(weekend),\(total)\n"
         }
         
-        csvContent += "\nTotals,\(report.totals.weekdayHours),\(report.totals.weekendHours),\(report.totals.totalHours)\n"
-        csvContent += "Salary,\(report.totals.salary)\n"
+        csvContent += "\nTotals,\(report.totals.weekdayHours.formatClean()),\(report.totals.weekendHours.formatClean()),\(report.totals.totalHours.formatClean())\n"
+        csvContent += "Salary,\(report.totals.salary.formatClean())\n"
         
         try csvContent.write(to: url, atomically: true, encoding: .utf8)
         Logger.log("Exported CSV report to: \(url.path)", log: Logger.general)
@@ -71,17 +71,17 @@ struct PDFReportView: View {
                 HStack {
                     Text("Weekday Hours:")
                     Spacer()
-                    Text("\(report.totals.weekdayHours)")
+                    Text(report.totals.weekdayHours.formatClean())
                 }
                 HStack {
                     Text("Weekend Hours:")
                     Spacer()
-                    Text("\(report.totals.weekendHours)")
+                    Text(report.totals.weekendHours.formatClean())
                 }
                 HStack {
                     Text("Total Hours:")
                     Spacer()
-                    Text("\(report.totals.totalHours)")
+                    Text(report.totals.totalHours.formatClean())
                         .bold()
                 }
                 HStack {
@@ -106,9 +106,9 @@ struct PDFReportView: View {
                         .font(.subheadline)
                         .bold()
                     HStack {
-                        Text("Weekday: \(weeklyReport.weekdayHours)h")
+                        Text("Weekday: \(weeklyReport.weekdayHours.formatClean())h")
                         Spacer()
-                        Text("Weekend: \(weeklyReport.weekendHours)h")
+                        Text("Weekend: \(weeklyReport.weekendHours.formatClean())h")
                     }
                     .font(.caption)
                 }

@@ -8,24 +8,36 @@ struct ImportView: View {
     @State private var selectedFile: URL?
     
     var body: some View {
-        VStack(spacing: 30) {
-            if viewModel.isImporting {
-                LoadingView(
-                    message: "Importing CSV file...",
-                    progress: viewModel.importProgress
-                )
-            } else if let error = viewModel.error {
-                ErrorView(error: error) {
-                    viewModel.error = nil
+        ZStack {
+            VStack(spacing: 30) {
+                if viewModel.isImporting {
+                    LoadingView(
+                        message: "Importing CSV file...",
+                        progress: viewModel.importProgress
+                    )
+                } else if let error = viewModel.error {
+                    ErrorView(error: error) {
+                        viewModel.error = nil
+                    }
+                } else if let preview = viewModel.preview {
+                    ImportPreviewView(preview: preview, viewModel: viewModel)
+                } else {
+                    ImportDropZone(
+                        draggedOver: $draggedOver,
+                        isFilePickerPresented: $isFilePickerPresented,
+                        onDrop: handleDrop
+                    )
                 }
-            } else if let preview = viewModel.preview {
-                ImportPreviewView(preview: preview, viewModel: viewModel)
-            } else {
-                ImportDropZone(
-                    draggedOver: $draggedOver,
-                    isFilePickerPresented: $isFilePickerPresented,
-                    onDrop: handleDrop
-                )
+            }
+            
+            // Notification overlay
+            if let message = viewModel.notificationMessage {
+                VStack {
+                    NotificationBanner(message: message, type: viewModel.notificationType)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: viewModel.notificationMessage)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,7 +62,7 @@ struct ImportView: View {
         provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, error in
             if let data = item as? Data,
                let url = URL(dataRepresentation: data, relativeTo: nil) {
-                Task {
+                Task { @MainActor in
                     await handleFileURL(url)
                 }
             }
@@ -63,12 +75,14 @@ struct ImportView: View {
         switch result {
         case .success(let urls):
             if let url = urls.first {
-                Task {
+                Task { @MainActor in
                     await handleFileURL(url)
                 }
             }
         case .failure(let error):
-            viewModel.error = ParserError.fileReadError(error)
+            Task { @MainActor in
+                viewModel.error = ParserError.fileReadError(error)
+            }
         }
     }
     
@@ -136,13 +150,61 @@ struct ImportPreviewView: View {
                 .font(.title)
                 .bold()
             
+            // Hours Summary
             VStack(alignment: .leading, spacing: 12) {
                 PreviewRow(label: "Month", value: preview.month)
                 PreviewRow(label: "Entries", value: "\(preview.entryCount)")
                 PreviewRow(label: "Weekday Hours", value: preview.weekdayHours.formatAsDecimalHours())
                 PreviewRow(label: "Weekend Hours", value: preview.weekendHours.formatAsDecimalHours())
                 PreviewRow(label: "Total Hours", value: (preview.weekdayHours + preview.weekendHours).formatAsDecimalHours())
-                PreviewRow(label: "Salary", value: CurrencyFormatter.shared.format(preview.salary))
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(12)
+            
+            Divider()
+            
+            // Rate Input Section
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Hourly Rates")
+                    .font(.headline)
+                
+                HStack {
+                    Text("Weekday Rate:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    TextField("90", value: $viewModel.weekdayRate, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .accessibilityLabel("Weekday hourly rate")
+                }
+                
+                HStack {
+                    Text("Weekend Rate:")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    TextField("100", value: $viewModel.weekendRate, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .accessibilityLabel("Weekend hourly rate")
+                }
+                
+                if let error = viewModel.rateValidationError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+                
+                Button("Calculate Salary") {
+                    viewModel.validateAndCalculateSalary()
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Calculate salary based on rates")
+                
+                if viewModel.isRatesValid {
+                    PreviewRow(label: "Calculated Salary", value: CurrencyFormatter.shared.format(viewModel.calculatedSalary))
+                        .padding(.top, 8)
+                }
             }
             .padding()
             .background(Color.gray.opacity(0.1))
@@ -152,40 +214,17 @@ struct ImportPreviewView: View {
                 Text("This month already exists in the database.")
                     .font(.subheadline)
                     .foregroundColor(.orange)
-                
-                HStack {
-                    Button("Replace") {
-                        Task {
-                            do {
-                                try await viewModel.confirmImport(action: .replace)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Replace existing month data")
-                    
-                    Button("Accumulate") {
-                        Task {
-                            do {
-                                try await viewModel.confirmImport(action: .accumulate)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Add to existing month data")
-                    
-                    Button("Cancel") {
-                        viewModel.preview = nil
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Cancel import")
+            }
+            
+            HStack(spacing: 16) {
+                Button("Delete") {
+                    viewModel.cancelPreview()
                 }
-            } else {
-                Button("Import") {
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .accessibilityLabel("Cancel and go back")
+                
+                Button(preview.existingMonth ? "Replace" : "Save") {
                     Task {
                         do {
                             try await viewModel.confirmImport(action: .replace)
@@ -195,7 +234,9 @@ struct ImportPreviewView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Import CSV data")
+                .tint(Color(red: 0.2, green: 0.85, blue: 0.3))
+                .disabled(!viewModel.isRatesValid)
+                .accessibilityLabel(preview.existingMonth ? "Replace existing report" : "Save report to database")
             }
         }
         .padding(40)
@@ -215,6 +256,30 @@ struct PreviewRow: View {
             Text(value)
                 .bold()
         }
+    }
+}
+
+struct NotificationBanner: View {
+    let message: String
+    let type: NotificationType
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: type.icon)
+                .font(.title3)
+            Text(message)
+                .font(.subheadline)
+                .fontWeight(.medium)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(type.color)
+                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        )
+        .padding(.top, 20)
     }
 }
 
