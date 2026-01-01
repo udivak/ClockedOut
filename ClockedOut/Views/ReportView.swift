@@ -1,11 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 struct ReportView: View {
     @ObservedObject var viewModel: ReportViewModel
-    @State private var isExportSheetPresented = false
-    @State private var exportFormat: ExportFormat = .pdf
-    @State private var exportSourceURL: URL?
+    @State private var showExportError = false
+    @State private var exportErrorMessage = ""
+    @State private var showExportSuccess = false
     
     enum ExportFormat {
         case pdf
@@ -37,11 +38,15 @@ struct ReportView: View {
         .task {
             await viewModel.loadReports()
         }
-        .fileMover(
-            isPresented: $isExportSheetPresented,
-            file: exportSourceURL
-        ) { result in
-            handleFileMoveResult(result)
+        .alert("Export Successful", isPresented: $showExportSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Report has been saved successfully.")
+        }
+        .alert("Export Failed", isPresented: $showExportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportErrorMessage)
         }
     }
     
@@ -68,14 +73,10 @@ struct ReportView: View {
                 if viewModel.generateReport() != nil {
                     Menu {
                         Button("Export as PDF") {
-                            Task {
-                                await prepareExport(format: .pdf)
-                            }
+                            exportReport(format: .pdf)
                         }
                         Button("Export as CSV") {
-                            Task {
-                                await prepareExport(format: .csv)
-                            }
+                            exportReport(format: .csv)
                         }
                     } label: {
                         Label("Export", systemImage: "square.and.arrow.up")
@@ -141,45 +142,39 @@ struct ReportView: View {
         }
     }
     
-    @MainActor
-    private func prepareExport(format: ExportFormat) async {
+    private func exportReport(format: ExportFormat) {
         guard let report = viewModel.generateReport() else { return }
         
-        let filename = "report-\(viewModel.selectedMonth ?? "unknown")"
+        let panel = NSSavePanel()
+        let sanitizedMonth = (viewModel.selectedMonth ?? "unknown")
+            .replacingOccurrences(of: "/", with: "-")
+        
         let fileExtension = format == .pdf ? "pdf" : "csv"
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(filename)
-            .appendingPathExtension(fileExtension)
+        panel.nameFieldStringValue = "report-\(sanitizedMonth).\(fileExtension)"
+        panel.allowedContentTypes = format == .pdf ? [.pdf] : [.commaSeparatedText]
+        panel.canCreateDirectories = true
+        panel.title = "Export Report"
         
-        do {
-            switch format {
-            case .pdf:
-                try ExportService.shared.exportToPDF(report: report, to: tempURL)
-            case .csv:
-                try await ExportService.shared.exportToCSV(report: report, to: tempURL)
-            }
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
             
-            exportFormat = format
-            exportSourceURL = tempURL
-            isExportSheetPresented = true
-        } catch {
-            Logger.log("Export preparation failed: \(error)", log: Logger.general)
+            Task { @MainActor in
+                do {
+                    switch format {
+                    case .pdf:
+                        try ExportService.shared.exportToPDF(report: report, to: url)
+                    case .csv:
+                        try await ExportService.shared.exportToCSV(report: report, to: url)
+                    }
+                    showExportSuccess = true
+                    Logger.log("File saved to: \(url.path)", log: Logger.general)
+                } catch {
+                    exportErrorMessage = error.localizedDescription
+                    showExportError = true
+                    Logger.log("Export failed: \(error)", log: Logger.general)
+                }
+            }
         }
-    }
-    
-    private func handleFileMoveResult(_ result: Result<URL, Error>) {
-        switch result {
-        case .success(let url):
-            Logger.log("File saved to: \(url.path)", log: Logger.general)
-        case .failure(let error):
-            Logger.log("File move failed: \(error)", log: Logger.general)
-        }
-        
-        // Clean up temp file
-        if let tempURL = exportSourceURL {
-            try? FileManager.default.removeItem(at: tempURL)
-        }
-        exportSourceURL = nil
     }
 }
 
