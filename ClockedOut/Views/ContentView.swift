@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedTab: Tab = .import
+    @State private var selectedTab: Tab = .`import`
     @State private var monthlyRepo: MonthlySummaryRepository?
     @State private var weeklyRepo: WeeklySummaryRepository?
     @State private var importViewModel: ImportViewModel?
@@ -10,7 +10,7 @@ struct ContentView: View {
     @State private var databaseInitialized = false
     
     enum Tab: String, CaseIterable {
-        case import = "Import"
+        case `import` = "Import"
         case reports = "Reports"
         case settings = "Settings"
     }
@@ -34,7 +34,7 @@ struct ContentView: View {
                 } detail: {
                     Group {
                         switch selectedTab {
-                        case .import:
+                        case .`import`:
                             ImportView(viewModel: importVM)
                         case .reports:
                             ReportView(viewModel: reportVM)
@@ -58,7 +58,7 @@ struct ContentView: View {
     
     private func icon(for tab: Tab) -> String {
         switch tab {
-        case .import:
+        case .`import`:
             return "square.and.arrow.down"
         case .reports:
             return "chart.bar"
@@ -84,7 +84,7 @@ struct ContentView: View {
                 databaseInitialized = true
             }
         } catch {
-            Logger.error("Failed to initialize database", error: error, log: .database)
+            Logger.error("Failed to initialize database", error: error, log: Logger.database)
             await MainActor.run {
                 databaseInitialized = true // Show error state
             }

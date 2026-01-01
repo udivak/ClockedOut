@@ -6,16 +6,28 @@ final class ExportService {
     
     private init() {}
     
-    func exportToPDF(report: ReportGenerator.MonthlyReport, to url: URL) async throws {
+    @MainActor
+    func exportToPDF(report: ReportGenerator.MonthlyReport, to url: URL) throws {
         let pdfView = PDFReportView(report: report)
         let renderer = ImageRenderer(content: pdfView)
         
-        guard let pdfData = renderer.pdfData() else {
+        var success = false
+        
+        renderer.render { size, renderContent in
+            var box = CGRect(origin: .zero, size: size)
+            guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
+            context.beginPDFPage(nil)
+            renderContent(context)
+            context.endPDFPage()
+            context.closePDF()
+            success = true
+        }
+        
+        guard success else {
             throw NSError(domain: "ExportService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate PDF"])
         }
         
-        try pdfData.write(to: url)
-        Logger.log("Exported PDF report to: \(url.path)", log: .general)
+        Logger.log("Exported PDF report to: \(url.path)", log: Logger.general)
     }
     
     func exportToCSV(report: ReportGenerator.MonthlyReport, to url: URL) async throws {
@@ -33,7 +45,7 @@ final class ExportService {
         csvContent += "Salary,\(report.totals.salary)\n"
         
         try csvContent.write(to: url, atomically: true, encoding: .utf8)
-        Logger.log("Exported CSV report to: \(url.path)", log: .general)
+        Logger.log("Exported CSV report to: \(url.path)", log: Logger.general)
     }
 }
 

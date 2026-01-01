@@ -1,13 +1,13 @@
 import Foundation
 import SwiftUI
+import Combine
 
-@Observable
-final class SettingsViewModel {
-    var weekdayRate: Double = 0.0
-    var weekendRate: Double = 0.0
-    var isSaving = false
-    var error: AppError?
-    var saveSuccess = false
+final class SettingsViewModel: ObservableObject {
+    @Published var weekdayRate: Double = 0.0
+    @Published var weekendRate: Double = 0.0
+    @Published var isSaving = false
+    @Published var error: AppError?
+    @Published var saveSuccess = false
     
     private let monthlyRepo: MonthlySummaryRepository
     private let preferenceManager = PreferenceManager.shared
@@ -75,8 +75,19 @@ final class SettingsViewModel {
     }
 }
 
-enum ValidationResult {
+enum ValidationResult: Equatable {
     case valid
     case invalid(ValidationError)
+    
+    static func == (lhs: ValidationResult, rhs: ValidationResult) -> Bool {
+        switch (lhs, rhs) {
+        case (.valid, .valid):
+            return true
+        case (.invalid(let lhsError), .invalid(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        default:
+            return false
+        }
+    }
 }
 

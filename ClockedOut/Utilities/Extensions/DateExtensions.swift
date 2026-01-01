@@ -81,5 +81,33 @@ extension Date {
         // Convert to local timezone
         return istDate
     }
+    
+    /// Flexible date parser that handles timezone abbreviations by stripping them
+    static func parseCSVDateFlexible(_ dateString: String) throws -> Date {
+        let trimmed = dateString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Try removing timezone suffix and parsing
+        // Format: "12/01/2025, 3:45:57 PM IST" -> "12/01/2025, 3:45:57 PM"
+        if let lastSpace = trimmed.lastIndex(of: " "),
+           trimmed[lastSpace...].count <= 5 { // Timezone abbrev is short (IST, PST, etc.)
+            let dateWithoutTZ = String(trimmed[..<lastSpace])
+            
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            
+            // Try with 1 or 2 digit month
+            for format in ["M/dd/yyyy, h:mm:ss a", "MM/dd/yyyy, h:mm:ss a"] {
+                formatter.dateFormat = format
+                // Assume IST (India Standard Time = UTC+5:30)
+                formatter.timeZone = TimeZone(secondsFromGMT: 5 * 3600 + 30 * 60)
+                if let date = formatter.date(from: dateWithoutTZ) {
+                    return date
+                }
+            }
+        }
+        
+        // Try existing parseCSVDate as last resort
+        return try parseCSVDate(trimmed)
+    }
 }
 

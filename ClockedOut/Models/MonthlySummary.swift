@@ -45,7 +45,7 @@ struct MonthlySummary: Codable {
         let components = month.split(separator: "/")
         guard components.count == 2,
               let monthNum = Int(components[0]),
-              let year = components[1] as String? else {
+              let year = String(components[1]) as String? else {
             return month
         }
         

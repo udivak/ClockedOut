@@ -1,12 +1,13 @@
 import Foundation
 import SwiftUI
+import Combine
 
-@Observable
-final class ImportViewModel {
-    var isImporting = false
-    var importProgress: Double = 0.0
-    var error: AppError?
-    var preview: ImportPreview?
+@MainActor
+final class ImportViewModel: ObservableObject {
+    @Published var isImporting = false
+    @Published var importProgress: Double = 0.0
+    @Published var error: AppError?
+    @Published var preview: ImportPreview?
     
     private var cachedEntries: [TimeEntry] = []
     private var cachedMonth: String?
@@ -76,9 +77,19 @@ final class ImportViewModel {
             cachedEntries = entries
             cachedMonth = month
             
-            // Import directly
-            importProgress = 0.8
-            try await confirmImport(entries: entries, month: month, action: .replace)
+            let rates = PreferenceManager.shared.loadRates()
+            let salary = (totals.weekdayHours * rates.weekday) + (totals.weekendHours * rates.weekend)
+            
+            // Show preview for new month
+            preview = ImportPreview(
+                month: month,
+                weekdayHours: totals.weekdayHours,
+                weekendHours: totals.weekendHours,
+                entryCount: entries.count,
+                salary: salary,
+                existingMonth: false
+            )
+            importProgress = 1.0
             
         } catch let error as AppError {
             self.error = error
@@ -91,7 +102,7 @@ final class ImportViewModel {
     }
     
     func confirmImport(action: ImportAction) async throws {
-        guard let preview = preview else {
+        guard preview != nil else {
             throw NSError(domain: "ImportViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No preview available"])
         }
         

@@ -18,7 +18,7 @@ final class DatabaseManager {
         
         let dbURL = dbDirectory.appendingPathComponent("clockedout.db")
         
-        Logger.log("Initializing database at: \(dbURL.path)", log: .database)
+        Logger.log("Initializing database at: \(dbURL.path)", log: Logger.database)
         
         var config = Configuration()
         config.prepareDatabase { db in
@@ -48,10 +48,14 @@ final class DatabaseManager {
         
         do {
             try migrator.migrate(dbQueue)
-            Logger.log("Database migrations completed successfully", log: .database)
+            Logger.log("Database migrations completed successfully", log: Logger.database)
         } catch {
-            Logger.error("Database migration failed", error: error, log: .database)
-            throw DatabaseError.migrationFailed(version: migrator.appliedMigrations.count + 1, error: error)
+            Logger.error("Database migration failed", error: error, log: Logger.database)
+            // Get the count of applied migrations by reading from the database
+            let appliedCount = try dbQueue.read { db in
+                try migrator.appliedMigrations(db).count
+            }
+            throw DatabaseError.migrationFailed(version: appliedCount + 1, error: error)
         }
     }
     
@@ -67,9 +71,8 @@ final class DatabaseManager {
             throw DatabaseError.connectionFailed(NSError(domain: "DatabaseManager", code: -1))
         }
         
-        try dbQueue.read { db in
-            try db.backup(to: DatabaseQueue(path: url.path))
-        }
+        let backupQueue = try DatabaseQueue(path: url.path)
+        try dbQueue.backup(to: backupQueue)
     }
 }
 

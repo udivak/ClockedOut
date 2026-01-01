@@ -31,18 +31,20 @@ struct TimeEntry: Codable, Identifiable {
     }
     
     init?(csvRow: [String: String]) throws {
-        guard let startText = csvRow["Start Text"],
-              let timeTrackedString = csvRow["Time Tracked"] else {
-            throw ParserError.missingColumns(["Start Text", "Time Tracked"])
+        guard let timeTrackedString = csvRow["Time Tracked"] else {
+            throw ParserError.missingColumns(["Time Tracked"])
         }
         
-        // Parse date
+        // Prefer Unix timestamp (milliseconds) from "Start" column
         let date: Date
-        do {
-            date = try Date.convertISTToLocal(startText)
-        } catch {
-            // Fallback to regular parsing
-            date = try Date.parseCSVDate(startText)
+        if let startTimestamp = csvRow["Start"],
+           let timestampMs = Int64(startTimestamp) {
+            date = Date(timeIntervalSince1970: Double(timestampMs) / 1000.0)
+        } else if let startText = csvRow["Start Text"] {
+            // Fallback to text parsing
+            date = try Date.parseCSVDateFlexible(startText)
+        } else {
+            throw ParserError.missingColumns(["Start or Start Text"])
         }
         
         // Parse time tracked (milliseconds)

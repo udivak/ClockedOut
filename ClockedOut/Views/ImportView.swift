@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ImportView: View {
-    @Bindable var viewModel: ImportViewModel
+    @ObservedObject var viewModel: ImportViewModel
     @State private var isFilePickerPresented = false
     @State private var draggedOver = false
     @State private var selectedFile: URL?
@@ -23,6 +23,7 @@ struct ImportView: View {
             } else {
                 ImportDropZone(
                     draggedOver: $draggedOver,
+                    isFilePickerPresented: $isFilePickerPresented,
                     onDrop: handleDrop
                 )
             }
@@ -82,6 +83,7 @@ struct ImportView: View {
 
 struct ImportDropZone: View {
     @Binding var draggedOver: Bool
+    @Binding var isFilePickerPresented: Bool
     let onDrop: ([NSItemProvider]) -> Bool
     
     var body: some View {
@@ -112,8 +114,13 @@ struct ImportDropZone: View {
                 .fill(draggedOver ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(draggedOver ? Color.blue : Color.gray.opacity(0.3), lineWidth: 2)
-                        .strokeStyle(style: draggedOver ? .dashed : .solid)
+                        .stroke(
+                            draggedOver ? Color.blue : Color.gray.opacity(0.3),
+                            style: StrokeStyle(
+                                lineWidth: 2,
+                                dash: draggedOver ? [10, 5] : []
+                            )
+                        )
                 )
         )
     }
@@ -121,7 +128,7 @@ struct ImportDropZone: View {
 
 struct ImportPreviewView: View {
     let preview: ImportPreview
-    @Bindable var viewModel: ImportViewModel
+    @ObservedObject var viewModel: ImportViewModel
     
     var body: some View {
         VStack(spacing: 20) {

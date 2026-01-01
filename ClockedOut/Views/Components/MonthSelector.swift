@@ -22,13 +22,18 @@ struct MonthSelector: View {
 }
 
 #Preview {
-    @Previewable @State var selected: String? = "12/2025"
-    return MonthSelector(
-        months: [
-            MonthlySummary(month: "12/2025"),
-            MonthlySummary(month: "11/2025")
-        ],
-        selectedMonth: $selected
-    )
+    struct PreviewWrapper: View {
+        @State var selected: String? = "12/2025"
+        var body: some View {
+            MonthSelector(
+                months: [
+                    MonthlySummary(month: "12/2025"),
+                    MonthlySummary(month: "11/2025")
+                ],
+                selectedMonth: $selected
+            )
+        }
+    }
+    return PreviewWrapper()
 }
 

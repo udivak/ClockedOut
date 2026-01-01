@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var viewModel: SettingsViewModel
+    @ObservedObject var viewModel: SettingsViewModel
     @FocusState private var focusedField: Field?
     
     enum Field {
@@ -19,7 +19,6 @@ struct SettingsView: View {
                         TextField("0.00", value: $viewModel.weekdayRate, format: .currency(code: "USD"))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .weekday)
-                            .keyboardType(.decimalPad)
                             .accessibilityLabel("Weekday hourly rate")
                     }
                     
@@ -29,7 +28,6 @@ struct SettingsView: View {
                         TextField("0.00", value: $viewModel.weekendRate, format: .currency(code: "USD"))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .weekend)
-                            .keyboardType(.decimalPad)
                             .accessibilityLabel("Weekend hourly rate")
                     }
                     
@@ -65,6 +63,7 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(viewModel.isSaving || viewModel.validateRates() != .valid)
+                .keyboardShortcut("s", modifiers: .command)
                 
                 if viewModel.saveSuccess {
                     HStack {
@@ -91,13 +90,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .keyboardShortcut("s", modifiers: .command) {
-            if viewModel.validateRates() == .valid && !viewModel.isSaving {
-                Task {
-                    try? await viewModel.saveRates()
-                }
-            }
-        }
     }
 }
 

@@ -6,7 +6,7 @@ final class CSVParser {
     private init() {}
     
     func parse(file url: URL) throws -> [TimeEntry] {
-        Logger.log("Parsing CSV file: \(url.lastPathComponent)", log: .parser)
+        Logger.log("Parsing CSV file: \(url.lastPathComponent)", log: Logger.parser)
         
         guard let data = try? Data(contentsOf: url),
               let content = String(data: data, encoding: .utf8) else {
@@ -27,10 +27,13 @@ final class CSVParser {
         let headers = parseCSVLine(headerLine)
         
         // Validate required columns
-        let requiredColumns = ["Start Text", "Time Tracked"]
-        let missingColumns = requiredColumns.filter { !headers.contains($0) }
-        guard missingColumns.isEmpty else {
-            throw ParserError.missingColumns(missingColumns)
+        // Must have "Time Tracked" and at least one of "Start" (timestamp) or "Start Text"
+        guard headers.contains("Time Tracked") else {
+            throw ParserError.missingColumns(["Time Tracked"])
+        }
+        
+        guard headers.contains("Start") || headers.contains("Start Text") else {
+            throw ParserError.missingColumns(["Start or Start Text"])
         }
         
         // Parse rows
@@ -44,7 +47,7 @@ final class CSVParser {
             
             let values = parseCSVLine(line)
             guard values.count == headers.count else {
-                Logger.error("Row \(index + 1) has incorrect number of columns", log: .parser)
+                Logger.error("Row \(index + 1) has incorrect number of columns", log: Logger.parser)
                 continue
             }
             
@@ -60,9 +63,9 @@ final class CSVParser {
                 }
             } catch let error as ParserError {
                 errors.append(error)
-                Logger.error("Failed to parse row \(index + 1)", error: error, log: .parser)
+                Logger.error("Failed to parse row \(index + 1)", error: error, log: Logger.parser)
             } catch {
-                Logger.error("Unexpected error parsing row \(index + 1)", error: error, log: .parser)
+                Logger.error("Unexpected error parsing row \(index + 1)", error: error, log: Logger.parser)
             }
         }
         
@@ -70,9 +73,9 @@ final class CSVParser {
             throw errors.first ?? ParserError.invalidFormat("No valid entries found")
         }
         
-        Logger.log("Parsed \(entries.count) time entries from CSV", log: .parser)
+        Logger.log("Parsed \(entries.count) time entries from CSV", log: Logger.parser)
         if !errors.isEmpty {
-            Logger.log("Skipped \(errors.count) invalid rows", log: .parser)
+            Logger.log("Skipped \(errors.count) invalid rows", log: Logger.parser)
         }
         
         return entries

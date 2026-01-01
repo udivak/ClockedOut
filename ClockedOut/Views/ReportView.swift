@@ -2,10 +2,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ReportView: View {
-    @Bindable var viewModel: ReportViewModel
+    @ObservedObject var viewModel: ReportViewModel
     @State private var isExportSheetPresented = false
     @State private var exportFormat: ExportFormat = .pdf
-    @State private var exportURL: URL?
+    @State private var exportSourceURL: URL?
     
     enum ExportFormat {
         case pdf
@@ -37,13 +37,11 @@ struct ReportView: View {
         .task {
             await viewModel.loadReports()
         }
-        .fileExporter(
+        .fileMover(
             isPresented: $isExportSheetPresented,
-            document: nil,
-            contentType: exportFormat == .pdf ? .pdf : .commaSeparatedText,
-            defaultFilename: "report-\(viewModel.selectedMonth ?? "unknown")"
+            file: exportSourceURL
         ) { result in
-            handleExportDialog(result)
+            handleFileMoveResult(result)
         }
     }
     
@@ -70,12 +68,14 @@ struct ReportView: View {
                 if viewModel.generateReport() != nil {
                     Menu {
                         Button("Export as PDF") {
-                            exportFormat = .pdf
-                            isExportSheetPresented = true
+                            Task {
+                                await prepareExport(format: .pdf)
+                            }
                         }
                         Button("Export as CSV") {
-                            exportFormat = .csv
-                            isExportSheetPresented = true
+                            Task {
+                                await prepareExport(format: .csv)
+                            }
                         }
                     } label: {
                         Label("Export", systemImage: "square.and.arrow.up")
@@ -141,26 +141,45 @@ struct ReportView: View {
         }
     }
     
-    private func handleExportDialog(_ result: Result<URL, Error>) {
+    @MainActor
+    private func prepareExport(format: ExportFormat) async {
         guard let report = viewModel.generateReport() else { return }
         
+        let filename = "report-\(viewModel.selectedMonth ?? "unknown")"
+        let fileExtension = format == .pdf ? "pdf" : "csv"
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(filename)
+            .appendingPathExtension(fileExtension)
+        
+        do {
+            switch format {
+            case .pdf:
+                try ExportService.shared.exportToPDF(report: report, to: tempURL)
+            case .csv:
+                try await ExportService.shared.exportToCSV(report: report, to: tempURL)
+            }
+            
+            exportFormat = format
+            exportSourceURL = tempURL
+            isExportSheetPresented = true
+        } catch {
+            Logger.log("Export preparation failed: \(error)", log: Logger.general)
+        }
+    }
+    
+    private func handleFileMoveResult(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            Task {
-                do {
-                    switch exportFormat {
-                    case .pdf:
-                        try await ExportService.shared.exportToPDF(report: report, to: url)
-                    case .csv:
-                        try await ExportService.shared.exportToCSV(report: report, to: url)
-                    }
-                } catch {
-                    // Handle error
-                }
-            }
-        case .failure:
-            break
+            Logger.log("File saved to: \(url.path)", log: Logger.general)
+        case .failure(let error):
+            Logger.log("File move failed: \(error)", log: Logger.general)
         }
+        
+        // Clean up temp file
+        if let tempURL = exportSourceURL {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+        exportSourceURL = nil
     }
 }
 

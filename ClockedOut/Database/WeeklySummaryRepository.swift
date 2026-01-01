@@ -14,13 +14,20 @@ final class WeeklySummaryRepository {
             try WeeklySummary.filter(Column("month_id") == monthId).deleteAll(db)
             
             // Insert new summaries
-            for var summary in summaries {
-                var summaryWithMonthId = summary
-                summaryWithMonthId.monthId = monthId
+            for summary in summaries {
+                let summaryWithMonthId = WeeklySummary(
+                    id: summary.id,
+                    monthId: monthId,
+                    weekStartDate: summary.weekStartDate,
+                    weekEndDate: summary.weekEndDate,
+                    weekdayHours: summary.weekdayHours,
+                    weekendHours: summary.weekendHours,
+                    createdAt: summary.createdAt
+                )
                 try summaryWithMonthId.save(db)
             }
         }
-        Logger.log("Saved \(summaries.count) weekly summaries for month ID: \(monthId)", log: .database)
+        Logger.log("Saved \(summaries.count) weekly summaries for month ID: \(monthId)", log: Logger.database)
     }
     
     func fetch(for monthId: Int64) async throws -> [WeeklySummary] {
@@ -33,10 +40,10 @@ final class WeeklySummaryRepository {
     }
     
     func delete(for monthId: Int64) async throws {
-        try await dbQueue.write { db in
+        _ = try await dbQueue.write { db in
             try WeeklySummary.filter(Column("month_id") == monthId).deleteAll(db)
         }
-        Logger.log("Deleted weekly summaries for month ID: \(monthId)", log: .database)
+        Logger.log("Deleted weekly summaries for month ID: \(monthId)", log: Logger.database)
     }
     
     func fetchWeekRange(start: String, end: String) async throws -> [WeeklySummary] {

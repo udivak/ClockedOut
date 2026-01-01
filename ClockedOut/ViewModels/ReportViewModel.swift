@@ -1,14 +1,14 @@
 import Foundation
 import SwiftUI
+import Combine
 
-@Observable
-final class ReportViewModel {
-    var selectedMonth: String?
-    var monthlySummaries: [MonthlySummary] = []
-    var weeklyReports: [WeeklyReport] = []
-    var totals: ReportGenerator.Totals?
-    var isLoading = false
-    var error: AppError?
+final class ReportViewModel: ObservableObject {
+    @Published var selectedMonth: String?
+    @Published var monthlySummaries: [MonthlySummary] = []
+    @Published var weeklyReports: [WeeklyReport] = []
+    @Published var totals: ReportGenerator.Totals?
+    @Published var isLoading = false
+    @Published var error: AppError?
     
     private let monthlyRepo: MonthlySummaryRepository
     private let weeklyRepo: WeeklySummaryRepository
@@ -77,7 +77,7 @@ final class ReportViewModel {
     func generateReport() -> ReportGenerator.MonthlyReport? {
         guard let selectedMonth = selectedMonth,
               let summary = monthlySummaries.first(where: { $0.month == selectedMonth }),
-              let totals = totals else {
+              totals != nil else {
             return nil
         }
         

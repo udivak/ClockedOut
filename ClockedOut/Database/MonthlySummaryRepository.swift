@@ -12,7 +12,7 @@ final class MonthlySummaryRepository {
         try await dbQueue.write { db in
             try summary.save(db)
         }
-        Logger.log("Saved monthly summary for month: \(summary.month)", log: .database)
+        Logger.log("Saved monthly summary for month: \(summary.month)", log: Logger.database)
     }
     
     func fetch(month: String) async throws -> MonthlySummary? {
@@ -31,7 +31,7 @@ final class MonthlySummaryRepository {
         try await dbQueue.write { db in
             if let summary = try MonthlySummary.filter(Column("month") == month).fetchOne(db) {
                 try summary.delete(db)
-                Logger.log("Deleted monthly summary for month: \(month)", log: .database)
+                Logger.log("Deleted monthly summary for month: \(month)", log: Logger.database)
             }
         }
     }
@@ -68,7 +68,7 @@ final class MonthlySummaryRepository {
                 try summary.save(db)
             }
         }
-        Logger.log("Recalculated salaries for all monthly summaries", log: .database)
+        Logger.log("Recalculated salaries for all monthly summaries", log: Logger.database)
     }
 }
 
