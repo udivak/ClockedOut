@@ -16,6 +16,10 @@ final class ImportViewModel: ObservableObject {
     @Published var rateValidationError: String?
     @Published var isRatesValid: Bool = false
     
+    // Notification properties
+    @Published var notificationMessage: String?
+    @Published var notificationType: NotificationType = .success
+    
     private var cachedEntries: [TimeEntry] = []
     private var cachedMonth: String?
     
@@ -34,6 +38,22 @@ final class ImportViewModel: ObservableObject {
         let rates = PreferenceManager.shared.loadRates()
         weekdayRate = rates.weekday
         weekendRate = rates.weekend
+    }
+    
+    func showNotification(_ message: String, type: NotificationType) {
+        notificationMessage = message
+        notificationType = type
+        
+        // Auto-hide after 3 seconds
+        Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            notificationMessage = nil
+        }
+    }
+    
+    func cancelPreview() {
+        preview = nil
+        showNotification("Import cancelled", type: .success)
     }
     
     func validateAndCalculateSalary() {
@@ -106,6 +126,7 @@ final class ImportViewModel: ObservableObject {
                     existingMonth: true
                 )
                 importProgress = 1.0
+                showNotification("File loaded successfully", type: .success)
                 return // User needs to confirm
             }
             
@@ -126,25 +147,30 @@ final class ImportViewModel: ObservableObject {
                 existingMonth: false
             )
             importProgress = 1.0
+            showNotification("File loaded successfully", type: .success)
             
         } catch let error as AppError {
             self.error = error
+            showNotification("Error: \(error.localizedDescription)", type: .error)
             throw error
         } catch {
             let appError = ParserError.fileReadError(error)
             self.error = appError
+            showNotification("Error: \(appError.localizedDescription)", type: .error)
             throw appError
         }
     }
     
     func confirmImport(action: ImportAction) async throws {
-        guard preview != nil else {
+        guard let currentPreview = preview else {
             throw NSError(domain: "ImportViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No preview available"])
         }
         
         guard !cachedEntries.isEmpty, let month = cachedMonth else {
             throw NSError(domain: "ImportViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Entries not available"])
         }
+        
+        let isReplacing = currentPreview.existingMonth
         
         isImporting = true
         importProgress = 0.0
@@ -215,6 +241,7 @@ final class ImportViewModel: ObservableObject {
         self.preview = nil
         self.cachedEntries = []
         self.cachedMonth = nil
+        showNotification(isReplacing ? "Report replaced successfully" : "Report saved successfully", type: .success)
     }
     
     func previewImport(file url: URL) async throws -> ImportPreview {
@@ -247,6 +274,25 @@ enum ImportAction {
     case replace
     case accumulate
     case cancel
+}
+
+enum NotificationType {
+    case success
+    case error
+    
+    var color: Color {
+        switch self {
+        case .success: return Color(red: 0.2, green: 0.8, blue: 0.2)
+        case .error: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .success: return "checkmark.circle.fill"
+        case .error: return "xmark.circle.fill"
+        }
+    }
 }
 
 struct ImportPreview {
