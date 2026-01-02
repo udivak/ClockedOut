@@ -7,6 +7,9 @@ struct ReportView: View {
     @State private var showExportError = false
     @State private var exportErrorMessage = ""
     @State private var showExportSuccess = false
+    @State private var showDeleteConfirmation = false
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
     
     enum ExportFormat {
         case pdf
@@ -48,10 +51,32 @@ struct ReportView: View {
         } message: {
             Text(exportErrorMessage)
         }
+        .alert("Delete Report?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    do {
+                        try await viewModel.deleteCurrentReport()
+                    } catch {
+                        deleteErrorMessage = error.localizedDescription
+                        showDeleteError = true
+                    }
+                }
+            }
+        } message: {
+            Text("This will permanently delete the report for \(viewModel.selectedMonthFormatted). This action cannot be undone.")
+        }
+        .alert("Delete Failed", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteErrorMessage)
+        }
     }
     
     private var contentView: some View {
         VStack(spacing: 20) {
+            Divider()
+            
             // Month selector and export button
             HStack {
                 MonthSelector(
@@ -71,6 +96,17 @@ struct ReportView: View {
                 Spacer()
                 
                 if viewModel.generateReport() != nil {
+                    // Delete button (danger)
+                    Button {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .disabled(viewModel.isDeleting)
+                    .accessibilityLabel("Delete report")
+                    
+                    // Export menu
                     Menu {
                         Button("Export as PDF") {
                             exportReport(format: .pdf)

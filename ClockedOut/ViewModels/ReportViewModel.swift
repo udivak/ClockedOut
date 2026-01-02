@@ -9,6 +9,7 @@ final class ReportViewModel: ObservableObject {
     @Published var weeklyReports: [WeeklyReport] = []
     @Published var totals: ReportGenerator.Totals?
     @Published var isLoading = false
+    @Published var isDeleting = false
     @Published var error: AppError?
     
     private let monthlyRepo: MonthlySummaryRepository
@@ -86,6 +87,26 @@ final class ReportViewModel: ObservableObject {
             summary: summary,
             weeklyReports: weeklyReports
         )
+    }
+    
+    var selectedMonthFormatted: String {
+        monthlySummaries.first(where: { $0.month == selectedMonth })?.formattedMonth ?? selectedMonth ?? "this month"
+    }
+    
+    func deleteCurrentReport() async throws {
+        guard let selectedMonth = selectedMonth, !isDeleting else { return }
+        
+        isDeleting = true
+        defer { isDeleting = false }
+        
+        // Delete from database (ON DELETE CASCADE handles weekly summaries)
+        try await monthlyRepo.delete(month: selectedMonth)
+        
+        // Clear selection before reload so loadReports picks a new month
+        self.selectedMonth = nil
+        
+        // Reload reports - loadReports() auto-selects first available month
+        await loadReports()
     }
 }
 
