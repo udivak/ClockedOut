@@ -10,6 +10,9 @@ struct MonthSelector: View {
                 .foregroundColor(.secondary)
         } else {
             Picker("Month", selection: $selectedMonth) {
+                // Hidden nil tag to prevent SwiftUI warning when selection is temporarily nil
+                Text("").tag(nil as String?)
+                
                 ForEach(months, id: \.month) { summary in
                     Text(summary.formattedMonth)
                         .tag(summary.month as String?)
